@@ -2,6 +2,7 @@
 #include <thread>
 #include <mutex>
 #include <queue>
+#include <chrono>
 #include <condition_variable>
 #include <unistd.h>
 
@@ -26,8 +27,8 @@ int main(int argc, char *argv[]) {
     std::thread producer(producer_loop);
     std::thread consumer(consumer_loop);
 
-    char command;
     // Loop on control inputs
+    char command;
     while (!shutdown) {
         std::cin >> command;
         switch (command)
@@ -73,18 +74,42 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+void consume_item(int *bin) {
+    int val = buffer.front();
+    buffer.pop();
+    std::cout << "Get " << val << " from bin " << *bin << std::endl;
+    (*bin)++;
+    if (*bin == buffer_size) {
+        *bin = 0;
+    }
+}
+
 void consumer_loop() {
+    
+    int bin = 0;
+    while (true) {
+        // Lock sleep and sleep for sleep_time
+        std::lock_guard<std::mutex> sleep_lock(consumer_sleep_mtx);
+        std::this_thread::sleep_for(std::chrono::milliseconds(consumer_sleep));
 
-    // Begin inf loop
+        // Wait on items or shutdown
+        std::unique_lock<std::mutex> lock(buffer_mtx);
+        items.wait(lock, [] { return !buffer.empty() || shutdown; });
 
-    // Lock sleep and sleep for sleep_time
-
-    // Wait on items or shutdown
-
-    // Check shutdown
-
-    // Consume item from buffer
-
+        // Flush the buffer if shutdown has initiated
+        if (shutdown) {
+            while (!buffer.empty()) {
+                consume_item(&bin);
+            }
+            break;
+        }
+        // Else just consume an item from buffer
+        else {
+            consume_item(&bin);
+            spaces.notify_one();
+        }
+    }
+    std::cout << "End of Consumer." << std::endl;
 }
 
 void producer_loop() {
@@ -103,7 +128,7 @@ void producer_loop() {
 
 int validate_and_set_args(int argc, char *argv[]) {
     
-    // Check for correct ammount of args
+    // Check for correct amount of args
     if (argc != 4) {
         std::cerr << "Usage: " << argv[0] << " <buffer_size> <producer_sleep> <consumer_sleep>" << std::endl;
         return 1;
