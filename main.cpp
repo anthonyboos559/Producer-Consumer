@@ -75,13 +75,15 @@ int main(int argc, char *argv[]) {
 }
 
 void consume_item(int *bin) {
+
     int val = buffer.front();
     buffer.pop();
-    std::cout << "Get " << val << " from bin " << *bin << std::endl;
+    std::cout << "\t\t\tGet " << val << " from bin " << *bin << std::endl;
     (*bin)++;
     if (*bin == buffer_size) {
         *bin = 0;
     }
+
 }
 
 void consumer_loop() {
@@ -110,19 +112,44 @@ void consumer_loop() {
         }
     }
     std::cout << "End of Consumer." << std::endl;
+
+}
+
+void produce_item(int *bin) {
+
+    int val = std::rand() % 10000;
+    buffer.push(val);
+    std::cout << "Put " << val << " into bin " << *bin << std::endl;
+    (*bin)++;
+    if (*bin == buffer_size) {
+        *bin = 0;
+    }
+
 }
 
 void producer_loop() {
 
-    // Begin inf loop
+    int bin = 0;
+    while (true) {
+        // Lock sleep and sleep for sleep_time
+        std::lock_guard<std::mutex> sleep_lock(producer_sleep_mtx);
+        std::this_thread::sleep_for(std::chrono::milliseconds(producer_sleep));
 
-    // Lock sleep and sleep for sleep_time
+        // Wait on items or shutdown
+        std::unique_lock<std::mutex> lock(buffer_mtx);
+        spaces.wait(lock, [] { return buffer.size() < buffer_size || shutdown; });
 
-    // Wait on spaces or shutdown
-
-    // Check shutdown
-
-    // Produce item for buffer
+        // Stop production if shutdown has initiated
+        if (shutdown) {
+            break;
+        }
+        // Else just produce an item for the buffer
+        else {
+            produce_item(&bin);
+            items.notify_one();
+        }
+    }
+    std::cout << "End of Producer." << std::endl;
 
 }
 
