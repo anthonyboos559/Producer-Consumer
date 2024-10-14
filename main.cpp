@@ -91,8 +91,9 @@ void consumer_loop() {
     int bin = 0;
     while (true) {
         // Lock sleep and sleep for sleep_time
-        std::lock_guard<std::mutex> sleep_lock(consumer_sleep_mtx);
+        std::unique_lock<std::mutex> sleep_lock(consumer_sleep_mtx);
         std::this_thread::sleep_for(std::chrono::milliseconds(consumer_sleep));
+        sleep_lock.unlock();
 
         // Wait on items or shutdown
         std::unique_lock<std::mutex> lock(buffer_mtx);
@@ -132,8 +133,9 @@ void producer_loop() {
     int bin = 0;
     while (true) {
         // Lock sleep and sleep for sleep_time
-        std::lock_guard<std::mutex> sleep_lock(producer_sleep_mtx);
+        std::unique_lock<std::mutex> sleep_lock(producer_sleep_mtx);
         std::this_thread::sleep_for(std::chrono::milliseconds(producer_sleep));
+        sleep_lock.unlock();
 
         // Wait on items or shutdown
         std::unique_lock<std::mutex> lock(buffer_mtx);
